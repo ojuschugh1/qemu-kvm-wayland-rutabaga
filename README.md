@@ -4,6 +4,9 @@
 
 There are 2 script -> qemu-wayland-gpu-test.sh ( In this one has to manually install the fedora after the VM boats) and rutabaga-gpu-test.sh ( In this everything is automated , even after the guest vm boats for first time, it will automatically installs fedora for you)
 
+Requirements-: fedora os 41 Live Workstation in Host and stable internet if using live usb as it will install the dependencies.
+Storage >=30 gb and RAM >=4 , prefer 8gb
+
 1) Download the script
 2) Make it executable using chmod +x rutabaga-gpu-test.sh prefered for fully automation.
 3) open a new terminal run ./rutabaga-gpu-test.sh and you are all set :)
