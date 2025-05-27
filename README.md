@@ -7,7 +7,7 @@ There are 2 versions of script semi automated and fully automated -> qemu-waylan
 Requirements-: fedora os 41 Live Workstation in Host and stable internet if using live usb as it will install the dependencies.
 Storage >=30 gb and RAM >=4 , prefer 8gb
 
-1) Download the script
+1) Download the script- rutabaga-gpu-test.sh
 2) Make it executable using chmod +x rutabaga-gpu-test.sh prefered for fully automation.
 3) open a new terminal run ./rutabaga-gpu-test.sh and you are all set :)
    
