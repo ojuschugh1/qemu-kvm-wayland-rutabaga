@@ -2,7 +2,7 @@
 
 ## Quick Setup-:
 
-There are 2 script -> qemu-wayland-gpu-test.sh ( In this one has to manually install the fedora after the VM boats) and rutabaga-gpu-test.sh ( In this everything is automated , even after the guest vm boats for first time, it will automatically installs fedora for you)
+There are 2 versions of script semi automated and fully automated -> qemu-wayland-gpu-test.sh ( In this one has to manually install the fedora after the VM boats) and rutabaga-gpu-test.sh ( In this everything is automated , even after the guest vm boats for first time, it will automatically installs fedora for you)
 
 Requirements-: fedora os 41 Live Workstation in Host and stable internet if using live usb as it will install the dependencies.
 Storage >=30 gb and RAM >=4 , prefer 8gb
@@ -15,7 +15,7 @@ Storage >=30 gb and RAM >=4 , prefer 8gb
 
 # QEMU/KVM with virtio-gpu-rutabaga & Wayland Forwarding
 
-This repository contains two Bash scripts:
+This repository contains two Bash scripts each having 2 components/parts:
 
 1. **`part1.sh`** – Builds a custom QEMU from source with `virtio-gpu-rutabaga` (Rutabaga) support.
 2. **`part2.sh`** – Sets up, configures, and launches a Fedora 41 VM that uses the newly built QEMU binary, enables Wayland-forwarded graphics via Rutabaga, and installs example Wayland applications (e.g. Foot, Gedit, Firefox) in the guest.

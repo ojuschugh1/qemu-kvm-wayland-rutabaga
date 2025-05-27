@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ========================
-# Combined Script: try3.sh + try3part2.sh
+# Combined Script: part1.sh + part2.sh
 # ========================
 
-# ---- Begin try3.sh ----
+# ---- Begin part1.sh ----
 
 build_qemu_with_rutabaga() {
     set -e  # Exit on any error
@@ -425,9 +425,9 @@ EOF
     echo -e "${GREEN}Setup complete! QEMU with rutabaga support is ready.${NC}"
 }
 
-# ---- End try3.sh ----
+# ---- End part1.sh ----
 
-# ---- Begin try3part2.sh ----
+# ---- Begin part2.sh ----
 
 # Complete QEMU/KVM VM with Wayland Forwarding Setup Script
 # Target: Fedora 41 Workstation (Live USB or fresh installation)
@@ -450,8 +450,8 @@ VM_DISK_SIZE="20G"
 VM_RAM="4G"
 VM_CPUS="4"
 ISO_DIR="$VM_DIR/iso"
-FEDORA_ISO_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/41/Workstation/x86_64/iso/Fedora-Workstation-Live-x86_64-41-1.4.iso"
-FEDORA_ISO="$ISO_DIR/fedora-41-workstation.iso"
+FEDORA_EVERYTHING_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/41/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-41-1.4.iso"
+FEDORA_ISO="$ISO_DIR/fedora-41-everything.iso"
 
 print_status() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -568,11 +568,10 @@ download_fedora_iso() {
         print_status "Fedora ISO already exists: $FEDORA_ISO"
         return 0
     fi
-    print_status "Downloading Fedora 41 Workstation ISO..."
+    print_status "Downloading Fedora 41 Everything ISO..."
     print_status "This may take a while (approximately 2GB download)"
-    curl -L -o "$FEDORA_ISO.tmp" "$FEDORA_ISO_URL"
-    mv "$FEDORA_ISO.tmp" "$FEDORA_ISO"
-    print_status "✅ Fedora ISO downloaded: $FEDORA_ISO"
+    wget -O "$FEDORA_ISO" "$FEDORA_EVERYTHING_URL"
+    print_status "✅ Fedora Everything ISO downloaded: $FEDORA_ISO"
 }
 
 create_vm_disk() {
@@ -681,12 +680,13 @@ EOS
     # Create a minimal Fedora kickstart file for auto-install
     cat > "$VM_DIR/shared/ks.cfg" << 'KSEND'
 #version=DEVEL
+cmdline
+skipx
 lang en_US.UTF-8
 keyboard us
 timezone UTC
 rootpw --plaintext fedora
 user --name=fedora --password=fedora --plaintext --gecos="Fedora User"
-auth --useshadow --passalgo=sha512
 firewall --enabled
 selinux --enforcing
 network --bootproto=dhcp --device=eth0 --onboot=on
@@ -697,17 +697,47 @@ clearpart --all --initlabel
 autopart
 reboot
 %packages
-@^workstation-product-environment
+@core
 @gnome-desktop
 firefox
 foot
 gedit
 %end
 %post
-cp /mnt/hostshare/guest-autostart.sh /home/fedora/
+cat > /home/fedora/guest-autostart.sh <<'EOSH'
+#!/bin/bash
+exec > /home/fedora/guest-autostart.log 2>&1
+echo "Autostart script running at $(date)"
+env
+sleep 10
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export WAYLAND_DISPLAY="wayland-0"
+export GDK_BACKEND="wayland"
+export QT_QPA_PLATFORM="wayland"
+export MOZ_ENABLE_WAYLAND=1
+echo "Trying to start apps..."
+which foot && foot &
+which gedit && gedit &
+which firefox && firefox &
+echo "Done at $(date)"
+EOSH
 chmod +x /home/fedora/guest-autostart.sh
-echo '/home/fedora/guest-autostart.sh &' >> /home/fedora/.bash_profile
-chown fedora:fedora /home/fedora/guest-autostart.sh /home/fedora/.bash_profile
+mkdir -p /home/fedora/.config/autostart
+cat > /home/fedora/.config/autostart/guest-autostart.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Exec=/home/fedora/guest-autostart.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=Wayland App Autostart
+EOF
+chown -R fedora:fedora /home/fedora/.config /home/fedora/guest-autostart.sh
+# Set autologin in /etc/gdm/custom.conf
+sed -i '/^\[daemon\]/,/^\[/{/AutomaticLogin/d;/AutomaticLoginEnable/d}' /etc/gdm/custom.conf
+sed -i '/^\[daemon\]/a AutomaticLoginEnable=True\nAutomaticLogin=fedora' /etc/gdm/custom.conf
+systemctl set-default graphical.target
+systemctl enable gdm
 %end
 KSEND
     print_status "✅ Kickstart file created: $VM_DIR/shared/ks.cfg"
@@ -722,7 +752,7 @@ set -e
 VM_NAME="wayland-test-vm"
 VM_DIR="$HOME/wayland-vm"
 VM_DISK="$VM_DIR/${VM_NAME}.qcow2"
-FEDORA_ISO="$VM_DIR/iso/fedora-41-workstation.iso"
+FEDORA_ISO="$VM_DIR/iso/fedora-41-everything.iso"
 QEMU_BIN="/usr/local/bin/qemu-system-x86_64"
 KERNEL="$VM_DIR/vmlinuz"
 INITRD="$VM_DIR/initrd.img"
@@ -1063,7 +1093,7 @@ main() {
     print_status "Next steps:"
     echo "  1. cd $VM_DIR"
     echo "  2. ./install-helper.sh  # Read installation guide"
-    echo "  3. ./start-wayland-vm.sh --install  # Install Fedora in VM"
+    echo "  3. ./start-wayland-vm.sh --install --direct-kernel  # Install Fedora in VM (automated)"
     echo "  4. ./start-wayland-vm.sh  # Run VM normally"
     echo "  5. ./test-wayland.sh  # Test and verify setup"
     echo ""
@@ -1082,12 +1112,11 @@ main() {
         print_status "Extracting kernel and initrd from Fedora ISO..."
         # Try bsdtar first, fallback to 7z
         if command -v bsdtar >/dev/null 2>&1; then
-            bsdtar -C "$VM_DIR" -xf "$ISO_DIR/fedora-41-workstation.iso" --include vmlinuz --include initrd.img || true
-            # If not found, try common paths
-            bsdtar -C "$VM_DIR" -xf "$ISO_DIR/fedora-41-workstation.iso" LiveOS/vmlinuz LiveOS/initrd.img || true
+            bsdtar -C "$VM_DIR" -xf "$ISO_DIR/fedora-41-everything.iso" --include vmlinuz --include initrd.img || true
+            bsdtar -C "$VM_DIR" -xf "$ISO_DIR/fedora-41-everything.iso" LiveOS/vmlinuz LiveOS/initrd.img || true
         elif command -v 7z >/dev/null 2>&1; then
-            7z e "$ISO_DIR/fedora-41-workstation.iso" -o"$VM_DIR" vmlinuz initrd.img || true
-            7z e "$ISO_DIR/fedora-41-workstation.iso" -o"$VM_DIR" LiveOS/vmlinuz LiveOS/initrd.img || true
+            7z e "$ISO_DIR/fedora-41-everything.iso" -o"$VM_DIR" vmlinuz initrd.img || true
+            7z e "$ISO_DIR/fedora-41-everything.iso" -o"$VM_DIR" LiveOS/vmlinuz LiveOS/initrd.img || true
         else
             print_error "Neither bsdtar nor 7z found. Please install one to extract kernel/initrd."
             exit 1
@@ -1098,9 +1127,12 @@ main() {
         exit 1
     fi
     print_status "Starting VM in installation mode (direct kernel boot, fully automated)."
-    exec ./start-wayland-vm.sh --install --direct-kernel
+    # --- Automated two-stage install/boot ---
+    "$VM_DIR/start-wayland-vm.sh" --install --direct-kernel -no-reboot
+    print_status "Install phase complete. Booting VM from disk only."
+    "$VM_DIR/start-wayland-vm.sh"
 }
 
 main "$@"
 
-# ---- End try3part2.sh ---- 
+# ---- End part2.sh ---- 
